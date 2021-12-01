@@ -11,6 +11,44 @@ enum Term {
     App(Rc<Term>, Rc<Term>),
 }
 
+fn shift1(d: i32, c: i32, tm: Rc<Term>) -> Rc<Term> {
+    match &*tm {
+        Term::Var(x) => {
+            if *x >= c {
+                Rc::new(Term::Var(*x + d))
+            } else {
+                tm.clone()
+            }
+        }
+        Term::Abs(t) => Rc::new(Term::Abs(shift1(d, c + 1, t.clone()))),
+        Term::App(t1, t2) => Rc::new(Term::App(
+            shift1(d, c, t1.clone()),
+            shift1(d, c, t2.clone()),
+        )),
+    }
+}
+
+fn term_shift(d: i32, tm: Rc<Term>) -> Rc<Term> {
+    shift1(d, 0, tm)
+}
+
+fn term_subst_walk(j: i32, s: Rc<Term>, c: i32, t: Rc<Term>) -> Rc<Term> {
+    todo!()
+}
+
+fn term_subst(j: i32, s: Rc<Term>, tm: Rc<Term>) -> Rc<Term> {
+    term_subst_walk(j, s, 0, tm)
+}
+
+// (λ. 2 0) 4 の場合, 以下の手順で代入を行う
+// 関数呼び出し前に t = 2 0 と v = 4 を取り出しておく
+// 1. vのインデックスを+1して5にする
+// 2. tの0の項をv=5で置き換える => t = 2 5
+// 3. t全体を-1する => t = 1 4
+fn term_subst_top(s: Rc<Term>, tm: Rc<Term>) -> Rc<Term> {
+    term_shift(-1, term_subst(0, term_shift(1, s), tm))
+}
+
 impl Term {
     fn is_val(&self) -> bool {
         matches!(self, Term::Abs(..))
@@ -20,33 +58,14 @@ impl Term {
         panic!("No rule applies");
     }
 
-    // Shift (Def 6.2.1)
-    // ↑[c,d](k) = { k (k<c), k+d (k>=c)
-    // ↑[c,d](λ.t) = λ.↑[c+1,d](t)
-    // ↑[c,d](t1,t2) = ↑[c,d](t1) ↑[c,d](t2)
-    fn term_shift(&self, c: i32) -> Rc<Term> {
-        todo!()
-    }
-
-    // (λ. t12) v2 => t12.term_substr_top(v2)
-    fn term_subst_top(&self, v: Rc<Term>) -> Rc<Term> {
-        todo!()
-    }
-
     fn eval1(&self) -> Rc<Term> {
         match self {
             Term::App(l, r) => {
                 // E-AppAbs
-                // (λx.t12) v2 → [x → v2] t12
-                //
-                // Assignment
-                // [j → s] k = { s (k=j), k (otherwise)
-                // [j → s] (λ.t) = λ.[j+1 → ↑[0,1](s)] t
-                // [j → s] (t1 t2) = ([j → s] t1) ([j → s] t2)
                 if let Term::Abs(t) = &**l {
                     if r.is_val() {
                         println!("E-AppAbs");
-                        todo!();
+                        term_subst_top(r.clone(), t.clone());
                     }
                 }
                 // E-App1
@@ -77,7 +96,7 @@ fn test_shift() {
     let tm = Term::App(
         Rc::new(Term::Abs(Rc::new(Term::Var(3)))),
         Rc::new(Term::Abs(Rc::new(Term::Var(2)))),
-    ); //.term_shift(2, -1);
+    );
 
     println!("{:?}", tm);
 }
